@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Product Date Calculator v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Stencil+Display:wght@700;900&family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<style>
+/* VOICE: shipping-floor plain; printed, stamped, labelled
+   IDEA: a corrugated carton: settings are printed on the board, results are the thermal label stuck on it
+   PICTURE: stencil manufacture date on kraft board + a printed product label with barcode and QC stamp
+   COLOUR/TYPE: kraft, flexo black, label white, handling red; Big Shoulders Stencil (date) + Archivo (normal + condensed)
+   LAYOUT: board header with the stencil date, then printed milestone grid (left) and the label (right) */
+:root{color-scheme:light dark;
+--board:light-dark(#c9a47a,#2c241b);--board2:light-dark(#bf986c,#251e16);--print:light-dark(#000,#f0e6d6);
+--printMute:light-dark(rgb(0 0 0/.62),rgb(240 230 214/.62));--printRule:light-dark(rgb(0 0 0/.85),rgb(240 230 214/.7));
+--box:light-dark(#f3e6d3,#3a3025);--label:#fdfdfb;--labelInk:#000;--labelMute:#5c5c5c;
+--red:#c8102e;--redBg:light-dark(#f6dcd5,#4a221c)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;color:var(--print);font:16px/1.5 Archivo,system-ui,sans-serif;font-variant-numeric:tabular-nums;overflow-x:clip;
+ background:repeating-linear-gradient(90deg,transparent 0 9px,rgb(0 0 0/.035) 9px 11px),var(--board)}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--red);outline-offset:2px}
+.wrap{max-width:1240px;margin:0 auto;padding:0 max(4vw,16px)}
+.cond{font-stretch:72%}
+
+/* ---- board header ---- */
+.head{padding:22px 0 10px;display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between;border-bottom:3px solid var(--printRule)}
+.brand{display:flex;align-items:center;gap:12px}
+.brand svg{width:34px;height:34px;flex:none}
+h1{margin:0;font-size:22px;font-weight:800;font-stretch:80%;letter-spacing:.01em}
+.status{display:flex;gap:8px;flex-wrap:wrap;font-size:14px;font-stretch:80%;font-weight:600}
+.pill{padding:3px 10px;border:2px solid var(--printRule);border-radius:3px;white-space:nowrap}
+.pill.dirty{background:var(--red);border-color:var(--red);color:#fff}
+.pill.clean::before{content:"✓ "}
+.dateRow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px 40px;align-items:end;padding:28px 0 26px}
+.mfg>label{display:block;font-size:16px;font-weight:700;font-stretch:80%;margin-bottom:4px}
+#mfgErr{color:var(--red);font-weight:700;margin:6px 0 0;min-height:1.4em;font-size:14px}
+.dateWrap{position:relative}
+.dateField{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.dateField input{border:0;background:none;color:var(--print);font-family:"Big Shoulders Stencil Display",Impact,sans-serif;font-weight:900;font-size:clamp(58px,10vw,118px);line-height:.9;width:5.4em;padding:0;letter-spacing:.01em}
+.dateField input::placeholder{color:var(--printMute)}
+.dateField input:focus-visible{outline:none;text-decoration:underline 4px var(--red);text-underline-offset:10px}
+.dateField.bad input{color:var(--red)}
+.ib{border:2px solid var(--printRule);background:none;color:var(--print);width:46px;height:46px;border-radius:4px;cursor:pointer;display:grid;place-items:center}
+.ib:hover{background:var(--print);color:var(--board)}
+.ib svg{width:22px;height:22px}
+.ib.cal{background:var(--print);color:var(--board)}
+.ib.cal:hover{background:var(--red);border-color:var(--red);color:#fff}
+.tools{display:flex;gap:6px;align-items:center}
+.dow{font-size:18px;font-weight:800;font-stretch:75%;padding:0 6px;min-width:3ch}
+.readout{text-align:right;border-left:3px solid var(--printRule);padding:4px 0 6px 20px}
+.readout b{display:block;font-size:clamp(30px,4vw,44px);font-weight:800;font-stretch:70%;line-height:1}
+.readout span{font-size:14px;color:var(--printMute);font-stretch:85%}
+.scaleHidden{display:none}
+
+/* ---- printed milestone grid ---- */
+.sheet{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:clamp(24px,4vw,56px);padding-top:30px;padding-bottom:64px;align-items:start}
+h2{font-size:26px;margin:0;font-weight:800;font-stretch:72%;letter-spacing:.01em}
+.lede{color:var(--printMute);margin:2px 0 16px;font-size:15px}
+table{width:100%;border-collapse:collapse}
+#msTable{font-size:16px}
+#msTable th{text-align:left;font-weight:700;font-stretch:78%;font-size:14px;padding:8px 10px;border-top:3px solid var(--printRule);border-bottom:2px solid var(--printRule)}
+#msTable td{padding:7px 10px;border-bottom:1px solid var(--printRule);vertical-align:middle}
+#msTable tbody tr:nth-child(even){background:rgb(255 255 255/.12)}
+#msTable td:first-child{font-weight:800;font-stretch:72%;font-size:18px;width:2.6em}
+td.num,th.num{text-align:right}
+td input{width:100%;padding:8px 10px;min-height:44px;border:2px solid var(--printRule);border-radius:3px;background:var(--box);font-size:16px}
+td input:focus-visible{outline:none;border-color:var(--red);box-shadow:0 0 0 2px var(--red)}
+td input[readonly]{border-color:transparent;background:transparent!important;padding-left:0;font-weight:700}
+td input.off{text-align:right;width:6em;font-weight:700}
+input[aria-invalid=true]{border-color:var(--red)!important;background:var(--redBg)!important}
+td.calc{white-space:nowrap;font-weight:800;font-stretch:80%;font-size:17px}
+td.calc:not(.stale){background:var(--label);color:var(--labelInk);border-left:2px solid var(--printRule);border-right:2px solid var(--printRule)}
+td.calc.stale{color:var(--printMute);font-weight:400}
+.lock{display:none}
+.err{color:var(--red);font-size:13px;font-weight:700;margin:3px 0 0}
+.del{border:0;background:none;color:var(--print);cursor:pointer;width:40px;height:40px;border-radius:3px;font-size:22px;line-height:1}
+.del:hover{background:var(--red);color:#fff}
+.btns{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px}
+.spacer{flex:1}
+button.b{min-height:46px;padding:0 16px;border-radius:3px;border:2px solid var(--printRule);background:transparent;font-size:15px;font-weight:700;font-stretch:85%;cursor:pointer}
+button.b:hover{background:rgb(255 255 255/.18)}
+button.ghost{border-style:dashed}
+button.danger{color:var(--red);border-color:var(--red)}
+.actions{margin-top:24px;display:flex;flex-wrap:wrap;gap:12px}
+button.save{background:var(--box)}
+button.run{background:var(--print);color:var(--board);border-color:var(--print);padding:0 34px;font-size:17px;font-weight:800}
+button.run:hover{background:var(--red);border-color:var(--red);color:#fff}
+button.run[disabled]{opacity:.7;cursor:progress}
+
+/* ---- the thermal label ---- */
+.labelZone h2{margin-bottom:12px}
+.lbl{position:relative;background:var(--label);color:var(--labelInk);border-radius:8px;padding:18px 20px 16px;box-shadow:0 1px 0 rgb(0 0 0/.25),0 10px 24px -14px rgb(0 0 0/.55);overflow:hidden}
+.lbl::before{content:"";position:absolute;inset:8px;border:2px solid #000;border-radius:4px;pointer-events:none}
+.lhd{display:flex;justify-content:space-between;align-items:baseline;gap:10px;border-bottom:3px solid #000;padding:2px 6px 8px;font-stretch:75%;font-weight:800;font-size:15px}
+.lhd span:last-child{font-weight:500;color:var(--labelMute)}
+.lmfg{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 16px;align-items:end;padding:10px 6px;border-bottom:2px solid #000}
+.lmfg small{grid-column:1/-1;font-size:13px;color:var(--labelMute);font-stretch:85%}
+.lmfg b{font-family:"Big Shoulders Stencil Display",Impact,sans-serif;font-weight:900;font-size:clamp(40px,5vw,52px);line-height:.9}
+.lmfg em{font-style:normal;text-align:right;font-weight:800;font-stretch:72%;font-size:20px;line-height:1.1}
+.lmfg em small{display:block;font-weight:500;font-size:13px}
+.lt{font-size:15px;margin:2px 0}
+.lt td{padding:8px 6px;border-bottom:1px solid #000;font-stretch:85%}
+.lt tr:last-child td{border-bottom:2px solid #000}
+.lt td.o{text-align:right;color:var(--labelMute);white-space:nowrap}
+.lt td.dt{text-align:right;font-weight:800;font-size:18px;font-stretch:78%;white-space:nowrap}
+.lft{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;padding:12px 6px 4px}
+.bc{flex:1 1 auto;max-width:250px}.bar{display:block;height:54px;width:100%}
+.bar+span{display:block;font-size:12px;letter-spacing:.18em;margin-top:2px}
+.qc{flex:none;width:104px;height:104px;padding:6px;border:3px solid #000;border-radius:99px;display:grid;place-items:center;text-align:center;font-stretch:70%;font-weight:800;font-size:13px;line-height:1.1;transform:rotate(-8deg)}
+.qc b{display:block;font-size:18px}
+.void{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}
+.void div{transform:rotate(-14deg);border:5px solid var(--red);color:var(--red);border-radius:6px;padding:6px 18px;text-align:center;background:rgb(253 253 251/.82);font-weight:800;font-stretch:70%;line-height:1}
+.void b{display:block;font-family:"Big Shoulders Stencil Display",Impact,sans-serif;font-size:64px;font-weight:900;letter-spacing:.04em}
+.void small{font-size:15px}
+.lbl.stale .lt,.lbl.stale .lmfg,.lbl.stale .lft{opacity:.45}
+.blank{padding:34px 10px 26px;text-align:center}
+.blank b{display:block;font-size:22px;font-weight:800;font-stretch:72%}
+.blank p{margin:6px auto 0;color:var(--labelMute);max-width:30ch;font-size:15px}
+.blankLines{margin:18px 6px 0;height:70px;background:repeating-linear-gradient(#0000 0 22px,#d6d6d6 22px 23px)}
+.note{font-size:13px;color:var(--printMute);margin:10px 2px 0}
+.pass{color:#11703f}.fail{color:var(--red)}
+details{margin-top:22px;border-top:2px solid var(--printRule);padding-top:10px;font-size:14px}
+summary{cursor:pointer;font-weight:700;font-stretch:85%}
+details table{font-size:13px;margin-top:6px}
+details td,details th{padding:4px 6px;border-bottom:1px solid var(--printRule);text-align:left}
+details .pass{color:light-dark(#0b5a31,#7be0a6)}
+
+/* ---- calendar popover (label paper) ---- */
+#cal{position:absolute;left:0;top:calc(100% + 12px);z-index:15;background:var(--label);color:#000;border-radius:8px;box-shadow:0 22px 50px rgb(0 0 0/.35);width:min(700px,calc(100vw - 32px));display:none}
+#cal.on{display:block;animation:pop .14s ease-out}
+@keyframes pop{from{opacity:0;transform:translateY(-6px)}}
+.calTop{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 14px;border-bottom:3px solid #000}
+.calTop select{min-height:42px;padding:6px 10px;border:2px solid #000;border-radius:3px;background:#fff;color:#000;font-size:15px;font-weight:700}
+.calTop .spacer{flex:1}
+.calTop .lnk{border:0;background:none;color:#000;font-size:15px;font-weight:700;cursor:pointer;min-height:42px;padding:0 10px;border-radius:3px;text-decoration:underline;text-underline-offset:3px}
+.calTop .lnk:hover{background:#efefef}
+.calBody{position:relative;display:grid;grid-template-columns:repeat(var(--n,2),minmax(0,1fr));gap:30px;padding:16px 60px 10px}
+.nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:3px;border:2px solid #000;background:#fff;color:#000;cursor:pointer;display:grid;place-items:center}
+.nav:hover{background:#000;color:#fff}
+.nav.p{left:8px}.nav.n{right:8px}
+.mon h3{margin:0 0 8px;font-size:19px;font-weight:800;font-stretch:75%}
+.days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));row-gap:3px}
+.days .h{font-size:12px;color:#5c5c5c;text-align:center;padding:4px 0;font-stretch:85%;font-weight:600}
+.d{position:relative;height:40px;display:grid;place-items:center}
+.d button{position:relative;z-index:1;width:38px;height:38px;border-radius:99px;border:0;background:none;color:#000;font-size:15px;cursor:pointer}
+.d button:hover{background:#ececec}
+.d.sat button{color:#6b6b6b}.d.sun button{color:var(--red)}
+.d.band{background:#f1e4d1}
+.d.bandS{border-radius:99px 0 0 99px}.d.bandE{border-radius:0 99px 99px 0}.d.bandS.bandE{border-radius:99px}
+.d.mark button::after{content:"";position:absolute;left:50%;bottom:3px;width:6px;height:6px;margin-left:-3px;background:#000;transform:rotate(45deg)}
+.d.today button{box-shadow:inset 0 0 0 2px #000}
+.d.sel button{background:#000;color:#fff;font-weight:800}
+.d.sel button::after{background:#fff}
+.calFoot{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 14px 14px;border-top:2px solid #000;font-size:13px;color:#4a4a4a}
+.calFoot .key{display:flex;gap:14px;flex-wrap:wrap}
+.calFoot .key i{display:inline-block;width:10px;height:10px;vertical-align:-1px;margin-right:6px}
+#cal button.b{border-color:#000;color:#000}
+#cal button.run{background:#000;color:#fff}
+#cal button.run:hover{background:var(--red);border-color:var(--red)}
+
+/* toast + modal */
+#toasts{position:fixed;right:16px;bottom:16px;display:grid;gap:8px;z-index:40;max-width:min(380px,calc(100vw - 32px))}
+.toast{background:var(--label);color:#000;padding:12px 16px;border-radius:4px;font-size:14px;font-weight:700;border:2px solid #000;box-shadow:0 8px 20px -10px rgb(0 0 0/.6);animation:pop .16s ease-out}
+.toast.e{border-color:var(--red);color:var(--red)}
+.modal{position:fixed;inset:0;background:rgb(30 20 10/.55);display:none;place-items:center;z-index:30;padding:16px}
+.modal.on{display:grid}
+.dlg{background:var(--label);color:#000;border-radius:8px;padding:24px;max-width:480px;width:100%;outline:2px solid #000;outline-offset:-10px}
+.dlg h2{margin-bottom:6px}.dlg p{margin:0 0 4px;color:#4a4a4a}
+.dlg button.b{border-color:#000;color:#000}.dlg button.run{background:#000;color:#fff}.dlg button.danger{color:var(--red);border-color:var(--red)}
+@media(prefers-reduced-motion:reduce){*{animation:none!important}}
+@media(max-width:960px){.sheet{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:640px){.calBody{padding:12px 10px 6px;gap:0}.nav{top:20px;transform:none;width:38px;height:38px}.nav.p{left:auto;right:54px}.nav.n{right:10px}}
+@media(max-width:600px){
+ .dateRow{grid-template-columns:minmax(0,1fr)}
+ .readout{text-align:left;border-left:0;border-top:3px solid var(--printRule);padding:10px 0 0}
+ .dateField input{width:100%}
+ #msTable{font-size:15px}.stack thead{display:none}.stack tr{display:grid;padding-block:10px;border-bottom:2px solid var(--printRule);position:relative}
+ .stack td{display:flow-root;border:0!important;padding:3px 0!important;padding-inline-start:8.6em!important;text-align:start;width:auto}
+ .stack td::before{content:attr(data-l);float:inline-start;width:7.4em;margin-inline-start:-8.6em;color:var(--printMute);padding-top:10px;font-size:13px;line-height:1.25;font-weight:600}
+ #msTable.stack td:first-child,.stack td:empty{display:none}
+ .stack td:has(.del){position:absolute;right:0;top:6px;padding:0!important}.stack td:has(.del)::before{display:none}
+ .stack td.calc{background:none!important;color:var(--print)!important}.stack td.calc::before{padding-top:2px}
+ td input.off{width:100%;text-align:left}
+ .bc{max-width:none}
+}
+</style>
+<script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>
+</head>
+<body>
+<header class="wrap">
+ <div class="head">
+  <div class="brand">
+   <svg viewBox="0 0 34 34" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square" aria-hidden="true"><path d="M10 26V8M5 13l5-5 5 5M24 26V8M19 13l5-5 5 5M4 30h26"/></svg>
+   <h1>Product Date Calculator</h1>
+  </div>
+  <div class="status"><span id="dirtyPill" class="pill"></span><span id="savedAt" class="pill"></span></div>
+ </div>
+ <div class="dateRow">
+  <div class="mfg">
+   <label for="mfgText">Manufacture date</label>
+   <div class="dateWrap" id="dateWrap">
+    <div class="dateField" id="dateField">
+     <input id="mfgText" inputmode="numeric" placeholder="DD-MM-YYYY" autocomplete="off" aria-describedby="mfgErr">
+     <div class="tools">
+      <button class="ib cal" id="pickBtn" type="button" aria-label="Open calendar" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="5" width="17" height="15" rx="1"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></button>
+      <button class="ib" id="dayPrev" type="button" aria-label="Previous day"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M14.5 6l-6 6 6 6"/></svg></button>
+      <button class="ib" id="dayNext" type="button" aria-label="Next day"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9.5 6l6 6-6 6"/></svg></button>
+      <span class="dow" id="dow"></span>
+     </div>
+    </div>
+    <div id="cal" role="dialog" aria-label="Choose manufacture date">
+     <div class="calTop">
+      <select id="calMonth" aria-label="Month"></select>
+      <select id="calYear" aria-label="Year"></select>
+      <span class="spacer"></span>
+      <button class="lnk" id="calToday" type="button">Today</button>
+      <button class="lnk" id="calReset" type="button">Reset</button>
+     </div>
+     <div class="calBody" id="calBody"></div>
+     <div class="calFoot">
+      <span class="key"><span><i style="background:#000;border-radius:99px"></i>Selected</span><span><i style="background:#f1e4d1;border-radius:99px"></i>Milestone span</span><span><i style="background:#000;width:7px;height:7px;transform:rotate(45deg)"></i>Milestone</span></span>
+      <span class="spacer"></span>
+      <button class="b" id="calCancel" type="button">Cancel</button>
+      <button class="b run" id="calDone" type="button">Done</button>
+     </div>
+    </div>
+   </div>
+   <p id="mfgErr" role="alert"></p>
+  </div>
+  <div class="readout"><b id="spanOut">—</b><span id="spanLbl">milestone span</span></div>
+ </div>
+ <div class="scaleHidden" aria-hidden="true"><div id="track"></div><span id="endL"></span><span id="endR"></span></div>
+</header>
+
+<main class="wrap sheet">
+ <section aria-labelledby="cfgH">
+  <h2 id="cfgH">Milestones</h2>
+  <p class="lede">Each date is the manufacture date plus its own offset. Use a minus sign for days before.</p>
+  <table class="stack" id="msTable">
+   <thead><tr><th>S.No</th><th>Fields</th><th class="num">Offset Days</th><th>Calculated Date</th><th><span hidden>Actions</span></th></tr></thead>
+   <tbody id="msBody"></tbody>
+  </table>
+  <p class="err" id="tableErr"></p>
+  <div class="btns">
+   <button class="b ghost" id="addBtn" type="button">+ Add milestone</button>
+   <span class="spacer"></span>
+   <button class="b" id="resetBtn" type="button">Reset to default</button>
+   <button class="b danger" id="clearBtn" type="button">Clear configuration</button>
+  </div>
+  <div class="actions">
+   <button class="b save" id="saveBtn" type="button">Save configuration</button>
+   <button class="b run" id="runBtn" type="button">Run</button>
+  </div>
+ </section>
+
+ <section class="labelZone" aria-labelledby="resH" aria-live="polite">
+  <h2 id="resH">Results</h2>
+  <div id="results"></div>
+  <p class="note">The barcode is decorative, built from the manufacture date. It isn't a scannable code.</p>
+  <details>
+   <summary>Date engine check</summary>
+   <table id="testTable"><thead><tr><th>Scenario</th><th>Input</th><th class="num">Offset</th><th>Expected</th><th>Result</th></tr></thead><tbody></tbody></table>
+  </details>
+ </section>
+</main>
+
+<div id="toasts" role="status"></div>
+<div class="modal" id="modal" role="dialog" aria-modal="true"><div class="dlg" id="dlg"></div></div>
+
+<script>
+{
+/* ---------- date engine (ports to utils/dateCalculator.ts) ---------- */
+const DAY=86400000, MAX_OFF=36500;
+const pad=n=>String(n).padStart(2,'0');
+function parseISO(iso){
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||''); if(!m) return null;
+  const y=+m[1],mo=+m[2],d=+m[3],t=Date.UTC(y,mo-1,d),dt=new Date(t);
+  // reject silent normalisation e.g. 2025-02-30 -> 03-02
+  if(dt.getUTCFullYear()!==y||dt.getUTCMonth()!==mo-1||dt.getUTCDate()!==d) return null;
+  return t;
+}
+const fmt=t=>{const d=new Date(t);return pad(d.getUTCDate())+'-'+pad(d.getUTCMonth()+1)+'-'+d.getUTCFullYear()};
+const dmyToIso=s=>{const m=/^(\d{2})-(\d{2})-(\d{4})$/.exec((s||'').trim());return m?`${m[3]}-${m[2]}-${m[1]}`:null};
+const isoToDmy=iso=>{const t=parseISO(iso);return t==null?'':fmt(t)};
+function calculateDate(iso,offset){
+  const t=parseISO(iso); if(t==null) throw new Error('Invalid manufacture date');
+  if(!Number.isInteger(offset)) throw new Error('Offset must be an integer');
+  return fmt(t+offset*DAY);
+}
+
+/* ---------- storage (ports to utils/storage.ts) ---------- */
+const K={active:'pdc.active.v1',results:'pdc.results.v1'};
+const store={
+  get(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null}catch{return null}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true}catch{return false}},
+  del(k){try{localStorage.removeItem(k)}catch{}}
+};
+
+/* ---------- state ---------- */
+const DEFAULTS=()=>({manufactureDate:'2016-11-22',milestones:[
+  {id:'d1',name:'Proposal Date',offsetDays:'7',isDefault:true},
+  {id:'d2',name:'Quotation Date',offsetDays:'14',isDefault:true},
+  {id:'d3',name:'Approval Date',offsetDays:'30',isDefault:true},
+  {id:'d4',name:'Delivery Date',offsetDays:'45',isDefault:true}]});
+const clone=o=>JSON.parse(JSON.stringify(o));
+const sig=c=>c?JSON.stringify({d:c.manufactureDate,m:c.milestones.map(x=>[x.id,x.name.trim(),String(x.offsetDays).trim()])}):'';
+let saved=store.get(K.active);            // {config, savedAt}
+let draft=clone(saved?.config||DEFAULTS());
+let results=store.get(K.results);         // {sig, manufactureDate, items, ranAt}
+let mfgTextRaw=isoToDmy(draft.manufactureDate);
+let running=false;
+const isDirty=()=>!saved||sig(draft)!==sig(saved.config);
+const resultsValid=()=>results&&saved&&results.sig===sig(saved.config)&&!isDirty();
+
+/* ---------- validation (ports to utils/dateValidator.ts) ---------- */
+function validate(cfg){
+  const e={mfg:'',rows:{},list:[]};
+  if(parseISO(cfg.manufactureDate)==null) e.mfg='Enter a real date as DD-MM-YYYY.';
+  const seen=new Map();
+  cfg.milestones.forEach(m=>{
+    const r=[],n=m.name.trim(),o=String(m.offsetDays).trim();
+    if(!n) r.push('Name is required.');
+    else{const k=n.toLowerCase(); if(seen.has(k)) r.push('Duplicate name.'); seen.set(k,1)}
+    if(!/^[+-]?\d+$/.test(o)) r.push('Offset must be a whole number.');
+    else if(Math.abs(+o)>MAX_OFF) r.push(`Offset must be within ±${MAX_OFF}.`);
+    if(r.length) e.rows[m.id]=r;
+  });
+  if(!cfg.milestones.length) e.list.push('Add at least one milestone.');
+  e.ok=!e.mfg&&!Object.keys(e.rows).length&&!e.list.length;
+  return e;
+}
+let showErr=false;
+
+/* ---------- ui helpers ---------- */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(msg,err){const t=document.createElement('div');t.className='toast'+(err?' e':'');t.textContent=msg;$('toasts').append(t);setTimeout(()=>t.remove(),3200)}
+function modal(html,bind){$('dlg').innerHTML=html;$('modal').classList.add('on');bind?.();const f=$('dlg').querySelector('button');f?.focus()}
+const closeModal=()=>$('modal').classList.remove('on');
+$('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
+const fmtTs=ts=>new Date(ts).toLocaleString(undefined,{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
+/* ---------- render ---------- */
+function renderStatus(){
+  const d=isDirty();
+  $('dirtyPill').className='pill '+(d?'dirty':'clean');
+  $('dirtyPill').textContent=d?(saved?'Modified — unsaved':'Not saved yet'):'Saved';
+  $('savedAt').textContent=saved?'Last saved '+fmtTs(saved.savedAt):'Never saved';
+}
+function renderTable(){
+  const v=validate(draft), rv=resultsValid(), map=rv?Object.fromEntries(results.items.map(i=>[i.id,i.calculatedDate])):{};
+  $('msBody').innerHTML=draft.milestones.map((m,i)=>{
+    const er=showErr&&v.rows[m.id];
+    return `<tr data-id="${m.id}">
+     <td class="mono">${i+1}</td>
+     <td>${m.isDefault?`<input value="${esc(m.name)}" readonly aria-label="Milestone name" style="background:var(--calc)"><span class="lock">Default</span>`
+       :`<input data-f="name" value="${esc(m.name)}" placeholder="Milestone name" aria-label="Milestone name" ${er&&er.some(x=>/Name|Duplicate/.test(x))?'aria-invalid="true"':''}>`}
+       ${er?`<p class="err">${er.join(' ')}</p>`:''}</td>
+     <td class="num"><input class="off mono" data-f="offsetDays" inputmode="numeric" value="${esc(m.offsetDays)}" aria-label="Offset days" ${er&&er.some(x=>/Offset/.test(x))?'aria-invalid="true"':''}></td>
+     <td class="calc mono ${rv?'':'stale'}">${rv?map[m.id]||'—':'—'}</td>
+     <td>${m.isDefault?'':`<button class="del" data-del="${m.id}" aria-label="Delete ${esc(m.name)||'milestone'}" type="button">×</button>`}</td></tr>`}).join('');
+  $('tableErr').textContent=showErr?v.list.join(' '):'';
+  const mErr=showErr?v.mfg:(mfgTextRaw&&!dmyToIso(mfgTextRaw)&&mfgTextRaw.length>=10?'Use DD-MM-YYYY.':'');
+  $('mfgErr').textContent=mErr; $('mfgText').setAttribute('aria-invalid',!!mErr);
+}
+function renderScale(){
+  const t0=parseISO(draft.manufactureDate);
+  const ms=draft.milestones.map(m=>({n:m.name.trim()||'Untitled',o:/^[+-]?\d+$/.test(String(m.offsetDays).trim())?+m.offsetDays:null})).filter(m=>m.o!=null);
+  const offs=ms.map(m=>m.o), lo=Math.min(0,...offs), hi=Math.max(0,...offs), span=hi-lo||1;
+  const pos=o=>((o-lo)/span)*100;
+  const lbl=(p)=>p<8?' edgeL':p>92?' edgeR':'';
+  let h='<div class="axis"></div>';
+  const pz=pos(0);
+  h+=`<div class="tick zero" style="left:${pz}%"></div><div class="lab up zero${lbl(pz)}" style="left:${pz}%">Mfg<small class="mono">${t0!=null?fmt(t0):'—'}</small></div>`;
+  ms.sort((a,b)=>a.o-b.o).forEach((m,i)=>{const p=pos(m.o);
+    h+=`<div class="tick" style="left:${p}%"></div><div class="lab ${i%2?'up':'dn'}${lbl(p)}" style="left:${p}%">${esc(m.n)}<small class="mono">${m.o>0?'+':''}${m.o}d${t0!=null?' · '+fmt(t0+m.o*DAY):''}</small></div>`});
+  $('track').innerHTML=h;
+  $('endL').textContent=lo<0?lo+' days':'day 0'; $('endR').textContent='+'+hi+' days';
+  $('spanOut').textContent=offs.length?(hi-lo)+' days':'—';
+  $('spanLbl').textContent=t0!=null&&offs.length?`${fmt(t0+lo*DAY)} → ${fmt(t0+hi*DAY)}`:'milestone span';
+}
+function barcode(str){
+  const seq=[2,1,1,1].concat(...str.split('').map(c=>{const n=c.charCodeAt(0);return [1+(n%3),1+((n>>2)%2),1+((n>>1)%3),1+(n%2)]}),[2,1,1,1,2]);
+  let x=0,r='';seq.forEach((w,i)=>{if(i%2===0)r+=`<rect x="${x}" y="0" width="${w}" height="40"/>`;x+=w});
+  return `<svg class="bar" viewBox="0 0 ${x} 40" preserveAspectRatio="none" aria-hidden="true">${r}</svg>`;
+}
+function renderResults(){
+  const el=$('results');
+  if(!results){el.innerHTML=`<div class="lbl"><div class="lhd"><span>Product date label</span><span>Not printed</span></div><div class="blank"><b>No results yet</b><p>Save your milestones, then press Run to print every date on this label.</p></div><div class="blankLines"></div></div>`;return}
+  const valid=resultsValid(),md=isoToDmy(results.manufactureDate),code='MFG'+results.manufactureDate.replace(/-/g,''),ran=new Date(results.ranAt);
+  el.innerHTML=`<div class="lbl${valid?'':' stale'}">
+   <div class="lhd"><span>Product date label</span><span>Printed ${fmtTs(results.ranAt)}</span></div>
+   <div class="lmfg"><small>Manufacture date</small><b>${md}</b><em>${results.items.length}<small>dates calculated</small></em></div>
+   <table class="lt"><tbody>${results.items.map(i=>`<tr><td>${esc(i.name)}</td><td class="o">${i.offsetDays>0?'+':''}${i.offsetDays} d</td><td class="dt">${i.calculatedDate}</td></tr>`).join('')}</tbody></table>
+   <div class="lft"><div class="bc">${barcode(code)}<span>${code}</span></div><div class="qc"><div><b>${valid?'Complete':'Void'}</b>run ${pad(ran.getDate())}-${pad(ran.getMonth()+1)}-${ran.getFullYear()}</div></div></div>
+   ${valid?'':'<div class="void"><div><b>VOID</b><small>Configuration changed. Save and run again.</small></div></div>'}
+  </div>`;
+}
+function render(){renderStatus();renderTable();renderScale();renderResults();syncField()}
+
+/* ---------- actions ---------- */
+function doSave(){
+  const v=validate(draft); showErr=true;
+  if(!v.ok){render();toast('Fix the highlighted fields before saving.',1);return false}
+  draft.milestones.forEach(m=>{m.name=m.name.trim();m.offsetDays=String(+m.offsetDays)});
+  saved={config:clone(draft),savedAt:Date.now()};
+  if(!store.set(K.active,saved)) toast('Browser storage unavailable — saved for this session only.',1);
+  else toast('Configuration saved.');
+  showErr=false; render(); return true;
+}
+function doRun(){
+  if(running) return;
+  if(isDirty()){
+    modal(`<h2>Unsaved changes</h2><p>Run uses your saved configuration. Save the current changes first?</p>
+      <div class="btns"><button class="b run" id="mSR">Save &amp; run</button><button class="b" id="mC">Cancel</button></div>`,
+      ()=>{$('mSR').onclick=()=>{closeModal();if(doSave())doRun()};$('mC').onclick=closeModal});
+    return;
+  }
+  const cfg=saved.config, v=validate(cfg);
+  if(!v.ok){showErr=true;render();toast('Saved configuration is invalid.',1);return}
+  running=true;$('runBtn').disabled=true;$('runBtn').textContent='Calculating…';
+  setTimeout(()=>{
+    try{
+      const items=cfg.milestones.map(m=>({id:m.id,name:m.name,offsetDays:+m.offsetDays,calculatedDate:calculateDate(cfg.manufactureDate,+m.offsetDays)}));
+      results={sig:sig(cfg),manufactureDate:cfg.manufactureDate,items,ranAt:Date.now()};
+      store.set(K.results,results);
+      toast(`Run complete — ${items.length} milestones calculated.`);
+    }catch(e){toast('Run failed: '+e.message,1)}
+    running=false;$('runBtn').disabled=false;$('runBtn').textContent='Run';render();
+  },350);
+}
+
+/* ---------- events ---------- */
+$('msBody').addEventListener('input',e=>{
+  const f=e.target.dataset.f; if(!f) return;
+  const m=draft.milestones.find(x=>x.id===e.target.closest('tr').dataset.id); m[f]=e.target.value;
+  renderStatus();renderScale();renderResults();
+  // refresh calc column without stealing focus
+  document.querySelectorAll('#msBody td.calc').forEach(td=>{td.textContent='—';td.classList.add('stale')});
+});
+$('msBody').addEventListener('change',()=>renderTable());
+$('msBody').addEventListener('click',e=>{
+  const id=e.target.dataset.del; if(!id) return;
+  const m=draft.milestones.find(x=>x.id===id);
+  draft.milestones=draft.milestones.filter(x=>x.id!==id); render(); toast(`Removed "${m.name||'milestone'}" (unsaved).`);
+});
+$('addBtn').onclick=()=>{
+  draft.milestones.push({id:'c'+Date.now().toString(36),name:'',offsetDays:'0',isDefault:false}); render();
+  const ins=$('msBody').querySelectorAll('input[data-f=name]'); ins[ins.length-1]?.focus();
+};
+$('mfgText').addEventListener('input',e=>{
+  let v=e.target.value.replace(/[^\d]/g,'').slice(0,8);
+  if(v.length>4) v=v.slice(0,2)+'-'+v.slice(2,4)+'-'+v.slice(4); else if(v.length>2) v=v.slice(0,2)+'-'+v.slice(2);
+  e.target.value=mfgTextRaw=v; draft.manufactureDate=dmyToIso(v)||v;
+  renderStatus();renderScale();renderResults();
+  const bad=v.length===10&&parseISO(draft.manufactureDate)==null;
+  $('mfgErr').textContent=bad?'That date does not exist.':''; e.target.setAttribute('aria-invalid',bad);
+  syncField(); if(cal.open&&!bad&&v.length===10){cal.pending=cal.focus=draft.manufactureDate;showMonthOf(cal.pending);renderCal()}
+});
+/* ---------- calendar picker (ports to components/DatePicker.tsx) ---------- */
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const isoOf=(y,m,d)=>`${y}-${pad(m+1)}-${pad(d)}`;
+const tToIso=t=>{const d=new Date(t);return isoOf(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())};
+const todayIso=()=>{const n=new Date();return isoOf(n.getFullYear(),n.getMonth(),n.getDate())};
+const cal={open:false,y:2016,m:10,pending:null,focus:null};
+const nMonths=()=>window.innerWidth<640?1:2;
+$('calYear').innerHTML=Array.from({length:151},(_,i)=>1950+i).map(y=>`<option>${y}</option>`).join('');
+$('calMonth').innerHTML=MONTHS.map((m,i)=>`<option value="${i}">${m}</option>`).join('');
+function syncField(){
+  const t=parseISO(draft.manufactureDate);
+  $('dow').textContent=t!=null?new Date(t).toLocaleDateString('en-GB',{weekday:'short',timeZone:'UTC'}):'';
+  const bad=mfgTextRaw.length===10&&t==null;
+  $('dateField').classList.toggle('bad',bad||$('mfgText').getAttribute('aria-invalid')==='true');
+}
+function setMfg(iso){draft.manufactureDate=iso;mfgTextRaw=isoToDmy(iso);$('mfgText').value=mfgTextRaw;$('mfgErr').textContent='';render()}
+function milestoneInfo(){
+  const t0=parseISO(cal.pending);if(t0==null) return {marks:new Map(),lo:null,hi:null};
+  const marks=new Map();let lo=t0,hi=t0;
+  draft.milestones.forEach(m=>{const o=String(m.offsetDays).trim();if(!/^[+-]?\d+$/.test(o))return;
+    const t=t0+(+o)*DAY,k=tToIso(t);marks.set(k,(marks.get(k)?marks.get(k)+', ':'')+(m.name.trim()||'Untitled')+` (${+o>0?'+':''}${+o}d)`);lo=Math.min(lo,t);hi=Math.max(hi,t)});
+  return {marks,lo:tToIso(lo),hi:tToIso(hi)};
+}
+function renderCal(){
+  const n=nMonths(),{marks,lo,hi}=milestoneInfo(),td=todayIso();
+  $('calMonth').value=cal.m;$('calYear').value=cal.y;
+  let h=`<button class="nav p" id="calPrev" type="button" aria-label="Previous month"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 6l-6 6 6 6"/></svg></button>
+   <button class="nav n" id="calNext" type="button" aria-label="Next month"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.5 6l6 6-6 6"/></svg></button>`;
+  for(let k=0;k<n;k++){
+    const y=cal.y+Math.floor((cal.m+k)/12),m=(cal.m+k)%12;
+    const lead=(new Date(Date.UTC(y,m,1)).getUTCDay()+6)%7,dim=new Date(Date.UTC(y,m+1,0)).getUTCDate();
+    h+=`<div class="mon"><h3>${MONTHS[m]} ${y}</h3><div class="days" role="grid">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<div class="h">${d}</div>`).join('')}`;
+    for(let i=0;i<lead;i++) h+='<div></div>';
+    for(let d=1;d<=dim;d++){
+      const iso=isoOf(y,m,d),col=(lead+d-1)%7,c=['d'];
+      if(col===5)c.push('sat');if(col===6)c.push('sun');
+      if(lo&&lo!==hi&&iso>=lo&&iso<=hi){c.push('band');if(iso===lo||col===0||d===1)c.push('bandS');if(iso===hi||col===6||d===dim)c.push('bandE')}
+      if(marks.has(iso))c.push('mark');if(iso===td)c.push('today');if(iso===cal.pending)c.push('sel');
+      const lbl=new Date(Date.UTC(y,m,d)).toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'})+(marks.has(iso)?' — '+marks.get(iso):'');
+      h+=`<div class="${c.join(' ')}"><button type="button" data-iso="${iso}" tabindex="${iso===cal.focus?0:-1}" aria-label="${esc(lbl)}" title="${esc(marks.get(iso)||'')}" ${iso===cal.pending?'aria-selected="true"':''}>${d}</button></div>`;
+    }
+    h+='</div></div>';
+  }
+  $('calBody').style.setProperty('--n',n);$('calBody').innerHTML=h;
+  $('calPrev').onclick=()=>shiftMonth(-1);$('calNext').onclick=()=>shiftMonth(1);
+}
+function shiftMonth(d){const t=cal.y*12+cal.m+d;cal.y=Math.floor(t/12);cal.m=t%12;renderCal()}
+function showMonthOf(iso){const [y,m]=iso.split('-').map(Number);const first=cal.y*12+cal.m,tgt=y*12+m-1;
+  if(tgt<first||tgt>=first+nMonths()){cal.y=y;cal.m=m-1}}
+function openCal(){
+  cal.pending=parseISO(draft.manufactureDate)!=null?draft.manufactureDate:(saved?.config.manufactureDate||DEFAULTS().manufactureDate);
+  cal.focus=cal.pending;const [y,m]=cal.pending.split('-').map(Number);cal.y=y;cal.m=m-1;
+  cal.open=true;$('cal').classList.add('on');$('pickBtn').setAttribute('aria-expanded','true');renderCal();
+  $('calBody').querySelector(`[data-iso="${cal.focus}"]`)?.focus();
+}
+function closeCal(apply){
+  if(!cal.open) return;
+  if(apply&&cal.pending&&cal.pending!==draft.manufactureDate) setMfg(cal.pending);
+  cal.open=false;$('cal').classList.remove('on');$('pickBtn').setAttribute('aria-expanded','false');$('mfgText').focus();
+}
+$('pickBtn').onclick=()=>cal.open?closeCal(false):openCal();
+$('calMonth').onchange=e=>{cal.m=+e.target.value;renderCal()};
+$('calYear').onchange=e=>{cal.y=+e.target.value;renderCal()};
+$('calToday').onclick=()=>{cal.pending=cal.focus=todayIso();showMonthOf(cal.pending);renderCal()};
+$('calReset').onclick=()=>{cal.pending=cal.focus=DEFAULTS().manufactureDate;showMonthOf(cal.pending);renderCal()};
+$('calCancel').onclick=()=>closeCal(false);
+$('calDone').onclick=()=>closeCal(true);
+$('calBody').addEventListener('click',e=>{const b=e.target.closest('[data-iso]');if(!b)return;cal.pending=cal.focus=b.dataset.iso;renderCal();$('calBody').querySelector(`[data-iso="${cal.focus}"]`)?.focus()});
+$('calBody').addEventListener('dblclick',e=>{if(e.target.closest('[data-iso]'))closeCal(true)});
+$('calBody').addEventListener('keydown',e=>{
+  const b=e.target.closest('[data-iso]');if(!b)return;
+  const step={ArrowLeft:-1,ArrowRight:1,ArrowUp:-7,ArrowDown:7}[e.key];
+  let t=parseISO(b.dataset.iso);
+  if(step) t+=step*DAY;
+  else if(e.key==='PageUp'||e.key==='PageDown'){const d=new Date(t),dir=e.key==='PageUp'?-1:1,y=d.getUTCFullYear(),m=d.getUTCMonth()+dir,dim=new Date(Date.UTC(y,m+1,0)).getUTCDate();t=Date.UTC(y,m,Math.min(d.getUTCDate(),dim))}
+  else if(e.key==='Enter'){e.preventDefault();cal.pending=b.dataset.iso;closeCal(true);return}
+  else return;
+  e.preventDefault();cal.focus=tToIso(t);showMonthOf(cal.focus);renderCal();$('calBody').querySelector(`[data-iso="${cal.focus}"]`)?.focus();
+});
+document.addEventListener('mousedown',e=>{if(cal.open&&!$('dateWrap').contains(e.target))closeCal(false)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&cal.open)closeCal(false)});
+window.addEventListener('resize',()=>{if(cal.open)renderCal()});
+const stepDay=d=>{const t=parseISO(draft.manufactureDate);if(t==null){toast('Enter a valid date first.',1);return}setMfg(tToIso(t+d*DAY))};
+$('dayPrev').onclick=()=>stepDay(-1);$('dayNext').onclick=()=>stepDay(1);
+$('mfgText').addEventListener('keydown',e=>{if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();stepDay(e.key==='ArrowUp'?1:-1)}else if(e.key==='ArrowDown'&&e.altKey)openCal()});
+$('saveBtn').onclick=doSave;
+$('runBtn').onclick=doRun;
+$('resetBtn').onclick=()=>{draft=DEFAULTS();mfgTextRaw=isoToDmy(draft.manufactureDate);$('mfgText').value=mfgTextRaw;showErr=false;render();toast('Defaults restored — save to keep them.')};
+$('clearBtn').onclick=()=>modal(`<h2>Clear configuration?</h2><p>This deletes your saved configuration and last results from this browser.</p>
+  <div class="btns"><button class="b danger" id="mY">Clear</button><button class="b" id="mN">Cancel</button></div>`,
+  ()=>{$('mY').onclick=()=>{store.del(K.active);store.del(K.results);saved=null;results=null;draft=DEFAULTS();mfgTextRaw=isoToDmy(draft.manufactureDate);$('mfgText').value=mfgTextRaw;closeModal();render();toast('Configuration cleared.')};$('mN').onclick=closeModal});
+/* ---------- engine self-check ---------- */
+const TESTS=[['Normal future','22-11-2016',7,'29-11-2016'],['Month transition','28-01-2025',5,'02-02-2025'],['Year transition','29-12-2024',5,'03-01-2025'],
+ ['Leap year','25-02-2024',4,'29-02-2024'],['Non-leap year','25-02-2025',4,'01-03-2025'],['Past date','10-03-2025',-15,'23-02-2025'],
+ ['Same date','22-11-2016',0,'22-11-2016'],['Previous year','05-01-2025',-10,'26-12-2024'],['Invalid date rejected','30-02-2025',1,'error'],
+ ['Large positive','01-01-2000',10000,'19-05-2027'],['Large negative','01-01-2000',-10000,'15-08-1972']];
+document.querySelector('#testTable tbody').innerHTML=TESTS.map(([s,d,o,x])=>{
+  let r;try{r=calculateDate(dmyToIso(d),o)}catch{r='error'}
+  return `<tr><td>${s}</td><td class="mono">${d}</td><td class="num mono">${o}</td><td class="mono">${x}</td><td class="mono ${r===x?'pass':'fail'}">${r===x?'✓ ':'✗ '}${r}</td></tr>`}).join('');
+
+$('mfgText').value=mfgTextRaw;
+render();
+}
+</script>
+</body>
+</html>
